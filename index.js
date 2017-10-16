@@ -2,19 +2,26 @@ var express= require('express'),
     app = express(),
     server = require('http').createServer(app),
     io = require('socket.io').listen(server),
+    bodyParser = require('body-parser');
     users = [],
     connections = [];
-
+app.use(bodyParser.urlencoded({extended: true}));
 app.get('/', function(req, res){
     res.sendFile(__dirname + '/index.html')
 });
 
-app.get('/gameRoom', function(req, res){
-    res.sendFile(__dirname + '/gameRoom.html')
+app.post('/createGameRoom', function(req, res){
+    var roomName = req.body.roomName;
+    res.sendFile(__dirname + '/gameRoom.html', {roomName: roomName})
 });
+
+
 
 io.sockets.on('connection', function(socket){
     //Connect
+    socket.on('room', function(room){
+        socket.join(room);
+    });
     connections.push(socket);
     console.log('Connected %s sockets connected', connections.length);
     //Disconnect
@@ -26,7 +33,8 @@ io.sockets.on('connection', function(socket){
     //Send
     socket.on('send message', function(data){
         console.log(data);
-        io.sockets.emit('new message', {msg: data});
+        data.messageVal = data.user + ': ' + data.messageVal;
+        io.sockets.in(data.roomName).emit('new message', {msg: data.messageVal});
     })
 });
 
