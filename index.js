@@ -5,6 +5,7 @@ var express= require('express'),
     bodyParser = require('body-parser');
     users = [],
     connections = [];
+    rooms = [];
 app.use(bodyParser.urlencoded({extended: true}));
 app.get('/', function(req, res){
     res.sendFile(__dirname + '/index.html')
@@ -12,10 +13,23 @@ app.get('/', function(req, res){
 
 app.post('/createGameRoom', function(req, res){
     var roomName = req.body.roomName;
-    res.sendFile(__dirname + '/gameRoom.html', {roomName: roomName})
+    if (rooms.indexOf(roomName) === -1){
+        rooms.push(roomName);
+    } else {
+        res.send("Room name is already taken")
+    }
+    res.render('gameRoom.ejs', {roomName: roomName})
 });
 
+app.post('/joinGameRoom', function(req, res){
+    var roomName = req.body.roomName;
+    if (rooms.indexOf(roomName) === -1) {
+        res.send("Room does not exist");
+    }
+    res.render('gameRoom.ejs', {roomName: roomName})
+});
 
+var line_history = [];
 
 io.sockets.on('connection', function(socket){
     //Connect
@@ -24,6 +38,21 @@ io.sockets.on('connection', function(socket){
     });
     connections.push(socket);
     console.log('Connected %s sockets connected', connections.length);
+    socket.on('new user', function(data){
+        console.log(data);
+        io.sockets.in(data.roomName).emit('add user', {msg: data.user})
+    });
+    // first send the history to the new client
+    for (var i in line_history) {
+        socket.emit('draw_line', { line: line_history[i] } );
+    }
+    // add handler for message type "draw_line".
+    socket.on('draw_line', function (data) {
+        // add received line to history
+        line_history.push(data.line);
+        // send line to all clients
+        io.emit('draw_line', { line: data.line });
+    });
     //Disconnect
     socket.on('disconnect', function () {
         users.splice(users.indexOf(socket.username), 1);
